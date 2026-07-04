@@ -93,10 +93,17 @@ jobs:
                   summary_file.write('\n\n## 🤖 Remediación Inteligente (GitHub Copilot Agent)\n\n¡No se detectaron vulnerabilidades! Tu código está seguro. 👍')
               sys.exit(0)
               
-          print(f'Generando remediaciones con IA para {len(findings)} hallazgos...')
+          # Ordenar por severidad y limitar a los 10 más críticos para evitar 413 Payload Too Large
+          severity_priority = {"high": 0, "critical": 0, "medium": 1, "low": 2, "info": 3}
+          findings.sort(key=lambda x: severity_priority.get(x.get("severity", "").lower(), 99))
+          
+          total_findings = len(findings)
+          findings_to_analyze = findings[:10]
+          
+          print(f'Generando remediaciones con IA para los {len(findings_to_analyze)} hallazgos más críticos (de {total_findings} totales)...')
           
           prompt = 'Eres GitHub Copilot Security Expert. Analiza los siguientes hallazgos de seguridad OWASP encontrados en nuestro código y para cada uno de ellos proporciona:\n1. Una explicación clara y concisa de la vulnerabilidad y por qué es un riesgo.\n2. El bloque de código corregido (remediación segura) con comentarios explicativos.\n\nHallazgos a analizar:\n'
-          for i, f in enumerate(findings, 1):
+          for i, f in enumerate(findings_to_analyze, 1):
               prompt += f'\nHallazgo #{i}:\n- Regla: {f.get(\"rule_id\")}\n- Título: {f.get(\"title\")}\n- Severidad: {f.get(\"severity\")}\n- Descripción: {f.get(\"description\")}\n- Evidencia: {f.get(\"evidence\")}\n'
               
           url = 'https://models.inference.ai.azure.com/chat/completions'
@@ -121,6 +128,8 @@ jobs:
                   
                   with open(os.getenv('GITHUB_STEP_SUMMARY'), 'a') as summary_file:
                       summary_file.write('\n\n## 🤖 Remediación Inteligente (GitHub Copilot Agent)\n\n')
+                      if total_findings > 10:
+                          summary_file.write(f'*(Se muestran análisis de remediación para los 10 hallazgos más críticos de un total de {total_findings} detectados)*\n\n')
                       summary_file.write(ai_text)
                   print('✅ Reporte de remediación por IA generado con éxito.')
           except Exception as e:
