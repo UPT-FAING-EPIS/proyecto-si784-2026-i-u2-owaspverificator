@@ -1,0 +1,65 @@
+name: Skill de IA - Escaneo de Seguridad
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_type:
+        description: 'Tipo de objetivo (code, url, github_repo)'
+        required: true
+        default: 'github_repo'
+      target_value:
+        description: 'Valor del objetivo (código fuente, URL web o URL de repositorio GitHub)'
+        required: true
+  repository_dispatch:
+    types: [skill-ia-scan]
+
+jobs:
+  api-scan:
+    name: Escaneo de Seguridad Autónomo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ejecutar escaneo via API
+        run: |
+          # Resolver valores de entrada (de workflow_dispatch o repository_dispatch)
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            TARGET_TYPE="${{ github.event.client_payload.target_type }}"
+            TARGET_VALUE="${{ github.event.client_payload.target_value }}"
+          else
+            TARGET_TYPE="${{ github.event.inputs.target_type }}"
+            TARGET_VALUE="${{ github.event.inputs.target_value }}"
+          fi
+
+          echo "Iniciando análisis OWASP para tipo: $TARGET_TYPE..."
+
+          # Realizar petición POST para analizar
+          RESPONSE=$(curl -sf -X POST "http://38.250.116.71:8000/analyze/api" \
+            -H "x-api-key: ${{ secrets.OWASP_VERIFICATOR_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"target_type\": \"$TARGET_TYPE\",
+              \"target_value\": \"$TARGET_VALUE\",
+              \"create_issues\": false
+            }")
+          
+          echo "## 🛡️ Resultados de Análisis API (Skill de IA)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Formatear y mostrar resultados
+          echo "$RESPONSE" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          print(f'| Métrica | Valor |')
+          print(f'|---|---|')
+          print(f'| **Scan ID** | {data.get(\"id\")} |')
+          print(f'| **Estado** | {data.get(\"status\")} |')
+          print(f'| **Puntuación de Seguridad (Score)** | {data.get(\"score\")}/100 |')
+          print(f'| **Número de Hallazgos** | {len(data.get(\"findings\", []))} |')
+          print('\n### 🔍 Detalle de Hallazgos')
+          print('| Regla | Severidad | Descripción | Evidencia |')
+          print('|---|---|---|---|')
+          for f in data.get('findings', []):
+              evidence = f.get('evidence', '').replace('|', '\\|').replace('\n', ' ')
+              description = f.get('description', '').replace('|', '\\|')
+              print(f'| `{f.get(\"rule_id\")}` | {f.get(\"severity\")} | {description} | `{evidence}` |')
+          " >> $GITHUB_STEP_SUMMARY
