@@ -24,7 +24,8 @@ jobs:
       - name: Instalar dependencias
         run: |
           pip install -r requirements.txt
-          pip install mutmut
+          pip install "mutmut<3.0"
+
 
       - name: Ejecutar pruebas de mutación en scanner.py
         env:
