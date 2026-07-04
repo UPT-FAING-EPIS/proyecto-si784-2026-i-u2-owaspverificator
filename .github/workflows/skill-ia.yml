@@ -1,6 +1,10 @@
 name: Skill de IA - Escaneo de Seguridad
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       target_type:
@@ -21,10 +25,13 @@ jobs:
     steps:
       - name: Ejecutar escaneo via API
         run: |
-          # Resolver valores de entrada (de workflow_dispatch o repository_dispatch)
+          # Resolver valores de entrada dependiendo del evento
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             TARGET_TYPE="${{ github.event.client_payload.target_type }}"
             TARGET_VALUE="${{ github.event.client_payload.target_value }}"
+          elif [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
+            TARGET_TYPE="github_repo"
+            TARGET_VALUE="https://github.com/${{ github.repository }}"
           else
             TARGET_TYPE="${{ github.event.inputs.target_type }}"
             TARGET_VALUE="${{ github.event.inputs.target_value }}"
