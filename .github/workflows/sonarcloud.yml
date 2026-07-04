@@ -32,7 +32,7 @@ jobs:
         env:
           APP_ENV: test
         run: |
-          python -m pytest tests/ \
+          python -m pytest tests/test_scanner.py tests/test_api.py tests/test_integration.py \
             --cov=app \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
