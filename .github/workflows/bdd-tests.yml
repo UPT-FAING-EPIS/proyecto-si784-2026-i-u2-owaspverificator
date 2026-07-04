@@ -42,9 +42,8 @@ jobs:
       - name: Publicar resumen
         if: always()
         run: |
-          echo "## 🥒 Resultados de Pruebas BDD" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          python -m behave features/ --format summary --dry-run 2>/dev/null || true
+          python -m behave features/ --format summary --dry-run >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+
 
       - name: Subir resultados
         if: always()
