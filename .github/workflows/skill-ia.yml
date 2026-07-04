@@ -49,6 +49,9 @@ jobs:
               \"create_issues\": false
             }")
           
+          # Guardar respuesta para el paso de IA
+          echo "$RESPONSE" > response.json
+          
           echo "## 🛡️ Resultados de Análisis API (Skill de IA)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -70,3 +73,57 @@ jobs:
               description = f.get('description', '').replace('|', '\\|')
               print(f'| `{f.get(\"rule_id\")}` | {f.get(\"severity\")} | {description} | `{evidence}` |')
           " >> $GITHUB_STEP_SUMMARY
+
+      - name: Generar Remediación con Inteligencia Artificial (Copilot-like)
+        if: always()
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          # Solo ejecutar si se obtuvo respuesta del escaneo
+          if [ -f response.json ]; then
+            python3 -c "
+          import sys, os, json, urllib.request
+          
+          with open('response.json', 'r') as f:
+              data = json.load(f)
+          
+          findings = data.get('findings', [])
+          if not findings:
+              with open(os.getenv('GITHUB_STEP_SUMMARY'), 'a') as summary_file:
+                  summary_file.write('\n\n## 🤖 Remediación Inteligente (GitHub Copilot Agent)\n\n¡No se detectaron vulnerabilidades! Tu código está seguro. 👍')
+              sys.exit(0)
+              
+          print(f'Generando remediaciones con IA para {len(findings)} hallazgos...')
+          
+          prompt = 'Eres GitHub Copilot Security Expert. Analiza los siguientes hallazgos de seguridad OWASP encontrados en nuestro código y para cada uno de ellos proporciona:\n1. Una explicación clara y concisa de la vulnerabilidad y por qué es un riesgo.\n2. El bloque de código corregido (remediación segura) con comentarios explicativos.\n\nHallazgos a analizar:\n'
+          for i, f in enumerate(findings, 1):
+              prompt += f'\nHallazgo #{i}:\n- Regla: {f.get(\"rule_id\")}\n- Título: {f.get(\"title\")}\n- Severidad: {f.get(\"severity\")}\n- Descripción: {f.get(\"description\")}\n- Evidencia: {f.get(\"evidence\")}\n'
+              
+          url = 'https://models.inference.ai.azure.com/chat/completions'
+          headers = {
+              'Authorization': f'Bearer {os.getenv(\"GH_PAT\")}',
+              'Content-Type': 'application/json'
+          }
+          req_data = {
+              'messages': [
+                  {'role': 'system', 'content': 'Eres un consultor experto de seguridad OWASP y asistente técnico de GitHub Copilot.'},
+                  {'role': 'user', 'content': prompt}
+              ],
+              'model': 'gpt-4o-mini',
+              'temperature': 0.2
+          }
+          
+          try:
+              req = urllib.request.Request(url, data=json.dumps(req_data).encode('utf-8'), headers=headers, method='POST')
+              with urllib.request.urlopen(req) as response:
+                  res = json.loads(response.read().decode('utf-8'))
+                  ai_text = res['choices'][0]['message']['content']
+                  
+                  with open(os.getenv('GITHUB_STEP_SUMMARY'), 'a') as summary_file:
+                      summary_file.write('\n\n## 🤖 Remediación Inteligente (GitHub Copilot Agent)\n\n')
+                      summary_file.write(ai_text)
+                  print('✅ Reporte de remediación por IA generado con éxito.')
+          except Exception as e:
+              print(f'Error al llamar al API de GitHub Models: {e}')
+            "
+          fi
